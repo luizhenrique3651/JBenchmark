@@ -167,29 +167,6 @@ Operações medidas (100.000 elementos):
 
 ![Deleção (100k)](DocImg/delecao_100k.png)
 
----
-
-## 🚀 Como Executar
-
-### 1️⃣ Compilar
-
-```bash
-mvn -q package
-```
-
-### 2️⃣ Rodar teste rápido (~10k linhas)
-
-```bash
-java -cp target/classes com.luiz.TestFileRunner
-```
-
-### 3️⃣ Rodar benchmark completo (~200MB)
-
-```bash
-java -cp target/classes com.luiz.Main
-```
-
-⚠️ Certifique-se de ter espaço em disco e memória suficiente.
 
 ---
 
@@ -245,6 +222,31 @@ Se o volume crescer além disso (milhões de registros), pode ser necessário co
 - Para coleções:
     - `ArrayList` é excelente para acesso sequencial e inserção no fim.
     - `HashSet`/`HashMap` são melhores para buscas rápidas, mas têm overhead maior.
+
+
+---
+
+## 🚀 Como Executar
+
+### 1️⃣ Compilar
+
+```bash
+mvn -q package
+```
+
+### 2️⃣ Rodar teste rápido (~10k linhas)
+
+```bash
+java -cp target/classes com.luiz.TestFileRunner
+```
+
+### 3️⃣ Rodar benchmark completo (~200MB)
+
+```bash
+java -cp target/classes com.luiz.Main
+```
+
+⚠️ Certifique-se de ter espaço em disco e memória suficiente.
 
 ---
 
