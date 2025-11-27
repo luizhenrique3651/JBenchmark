@@ -21,55 +21,9 @@ public class FileBenchmark {
 
     public void executeAndCompare() throws Exception{
         System.out.println("*********  Executando benchmark de leitura de arquivo  *********\n ");
-        javaIOBenchmark();
-        javaNIOBenchmark();
-        javaNIO2Benchmark();
-
-        // novos cenários: escrita (inserção)
         writeBenchmark();
-
-        // novos cenários: edição
         editBenchmark();
-
-        // novos cenários: deleção (apaga arquivos temporários criados)
         deleteBenchmark();
-    }
-
-    public void javaIOBenchmark() throws IOException{
-        long t_ini, t_fim;
-        t_ini = System.currentTimeMillis();
-        BufferedReader br = new BufferedReader(new FileReader(path.toFile()));
-        String _l;
-        while (( _l = br.readLine()) != null) {
-            // apenas consumir as linhas
-        }
-        br.close();
-        t_fim = System.currentTimeMillis();
-        System.out.println("Java IO classico com BufferedReader, tempo: " + (t_fim - t_ini) + " ms");
-    }
-
-    public void javaNIOBenchmark() throws IOException{
-        long t_ini, t_fim;
-        t_ini = System.currentTimeMillis();
-        FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
-        ByteBuffer buffer = ByteBuffer.allocate(8192); //8 KB
-        while (channel.read(buffer) != -1) {
-            buffer.flip();
-            buffer.clear();
-        }
-        channel.close();
-        t_fim = System.currentTimeMillis();
-        System.out.println("Java NIO com FileChannel, tempo: " + (t_fim - t_ini) + " ms");
-    }
-
-    void javaNIO2Benchmark() throws IOException{
-        long t_ini, t_fim;
-        t_ini = System.currentTimeMillis();
-        List<String> linhas = Files.readAllLines(path);
-        int totalLinhas = linhas.size();
-
-        t_fim = System.currentTimeMillis();
-        System.out.println("Java NIO2 com ReadAllLines, tempo: " + (t_fim - t_ini) + " ms (linhas: " + totalLinhas + ")");
     }
 
     // ------------------ Escrita / Inserção ------------------
