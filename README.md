@@ -1,235 +1,265 @@
+
 # JBenchmark
 
-Repositório de benchmarks simples em Java para comparar estratégias de I/O (API clássica Java IO, NIO e NIO2) e medir operações básicas em coleções (`ArrayList`, `HashSet`, `HashMap`). O objetivo é educacional: demonstrar diferenças de implementação, trade-offs e comportamento de desempenho em cenários práticos.
+> Benchmarks simples em Java para comparar estratégias de I/O (Java IO, NIO e NIO2) e medir operações básicas em coleções (`ArrayList`, `HashSet`, `HashMap`).
 
-## Tecnologias e dependências
+O objetivo deste projeto é **entender, na prática**, como diferentes APIs e estruturas de dados se comportam em termos de desempenho — destacando trade-offs e padrões de uso recomendados.
 
-- Linguagem: Java (testado com Zulu JDK 25.0.1)
-- Build: Maven (`pom.xml` presente)
-- APIs usadas nos benchmarks:
-  - Java IO (`BufferedReader`, `BufferedWriter`, `File.delete()`)
-  - Java NIO (`FileChannel`, `ByteBuffer`, `StandardOpenOption`)
-  - Java NIO2 (`Files`, `readAllLines`, `write`, `delete`)
+---
 
-## Estrutura do projeto (arquivos principais)
+## ✅ Tecnologias Utilizadas
 
-- `FileGenerator` — gera o arquivo `benchmark.txt` (por padrão ~200 MB) usado nos benchmarks.
-- `FileBenchmark` — implementa cenários de leitura, escrita, edição e deleção usando IO/NIO/NIO2.
-- `CollectionBenchmark` — mede operações de inserção, leitura, atualização e deleção em `ArrayList`, `HashSet` e `HashMap` para tamanhos configurados (por padrão 10_000 e 100_000).
-- `Main` — ponto de entrada: gera arquivo e executa os benchmarks.
-- `TestFileRunner` — runner de teste rápido (gera um arquivo pequeno de 10k linhas e limpa artefatos).
+- **Linguagem:** Java (Zulu JDK 25.0.1)
+- **Build:** Maven
+- **APIs de I/O:**
+    - Java IO — `BufferedReader`, `BufferedWriter`
+    - Java NIO — `FileChannel`, `ByteBuffer`
+    - Java NIO2 — `Files.*`
 
-## Estratégia de benchmark e métricas
+---
 
-- Arquivo de entrada: o `FileGenerator` cria `benchmark.txt` (aprox. 200 MB) com linhas repetidas para simular leitura/escrita intensiva.
-- Leitura:
-  - IO: `BufferedReader.readLine()` (leitura linha a linha, streaming).
-  - NIO: `FileChannel` + `ByteBuffer` (leitura por blocos de bytes, buffer de leitura configurado — comportamento orientado a blocos).
-  - NIO2: `Files.readAllLines()` (carrega todas as linhas em memória como `List<String>`).
-- Escrita:
-  - IO: `BufferedWriter` escrevendo linha a linha.
-  - NIO: `FileChannel` escrevendo `ByteBuffer` por linha ou bloco.
-  - NIO2: `Files.write()` com um `List<String>` de conteúdo.
-- Edição:
-  - IO: leitura via `BufferedReader` e escrita para arquivo temporário linha a linha (streaming).
-  - NIO/NIO2: implementação que recorre a `readAllLines()` + transformações + `Files.write()` (carrega tudo em memória e reescreve).
-- Deleção: `File.delete()` (IO) e `Files.delete()` (NIO2).
+## 🖥️ Ambiente de Execução
+- MacBook Pro 2020 (Intel i5 · 16 GB RAM)
+- macOS Sequoia
+- Zulu JDK 25.0.1
+- Execução via IntelliJ
+- Spotify/Safari abertos (ruído possível)
 
-Medidas:
-- Temporização simples usando `System.currentTimeMillis()` (duração em ms), impressa no console.
-- Para benchmarks de coleções: warmup + 3 iterações medidas; entre execuções é chamado `System.gc()` e há pequena espera (50 ms) — cuidado: isso pode introduzir ruído nas medições.
+---
+## 📂 Estrutura do Projeto
 
-Observação técnica: `Files.readAllLines()` não é adequado para arquivos muito grandes (pode estourar memória / criar overhead de GC). Estratégias baseadas em blocos (`FileChannel`) tendem a ser mais estáveis para grandes volumes, desde que agreguem escrita em buffers maiores para reduzir chamadas de I/O pequenas.
+| Classe | Responsabilidade |
+|--------|-----------------|
+| `FileGenerator` | Gera um arquivo grande (~200MB) para os testes. |
+| `FileBenchmark` | Executa cenários de leitura, escrita, edição e deleção com IO/NIO/NIO2. |
+| `CollectionBenchmark` | Mede inserção, leitura, atualização e deleção em coleções. |
+| `Main` | Executa o benchmark completo. |
+| `TestFileRunner` | Executa benchmark rápido (~10k linhas). |
 
-## Detalhes técnicos — abordagem dos benchmarks
+---
+
+## ⚙️ Detalhes técnicos — abordagem dos benchmarks
 
 Abaixo há uma descrição mais técnica e direta do que cada benchmark faz, quais decisões de implementação foram tomadas e as implicações para medições.
 
-### Benchmark de arquivo (classe `FileBenchmark`)
+## 📁 Benchmark de Arquivos (FileBenchmark)
 
-- Leitura:
-  - `javaIOBenchmark()` usa `BufferedReader.readLine()` para consumir o arquivo linha a linha (streaming). Essa estratégia cria objetos `String` por linha e faz parsing do separador de linha — é eficiente em memória quando usamos pouco conteúdo por vez.
-  - `javaNIOBenchmark()` abre um `FileChannel` em modo `READ` e faz leituras em blocos de 8 KB (`ByteBuffer.allocate(8192)`). O loop lê blocos: `channel.read(buffer)`, `buffer.flip()` e `buffer.clear()`. Nesta implementação não há decodificação explícita dos bytes para `String`, pois o objetivo é medir throughput bruto de leitura em blocos (I/O por blocos). O tamanho do buffer (8 KB) é um parâmetro que afeta latência e throughput; buffers maiores tendem a reduzir chamadas de I/O.
-  - `javaNIO2Benchmark()` usa `Files.readAllLines(path)` que carrega todas as linhas em memória como `List<String>`. Isso é simples, porém consome muita memória com arquivos grandes e aciona GC intensamente.
+### ✅ Leitura:
 
-- Escrita:
-  - `javaIOWriteBenchmark()` usa `BufferedWriter` e escreve linha a linha. O `BufferedWriter` agrega pequenos writes em um buffer nativo antes de gravar no disco.
-  - `javaNIOWriteBenchmark()` escreve repetidamente um pequeno `ByteBuffer` para um `FileChannel`. O buffer é alocado com o tamanho exato da linha (`bytes.length`) e reaproveitado via `buffer.rewind()` em cada iteração. Apesar de reaproveitar o buffer, escrever muitas vezes chama `channel.write()` repetidamente; agrupar muitas linhas em um buffer maior antes de escrever costuma melhorar a performance.
-  - `javaNIO2WriteBenchmark()` monta um `List<String>` com todas as linhas e chama `Files.write()` — a API delega ao sistema para gravar eficientemente, mas exige construir a lista em memória.
+  | Implementação         | Estratégia                                                | Pontos-Chave                                                                          |
+  | --------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+  | `javaIOBenchmark()`   | Leitura linha a linha com `BufferedReader`                | Baixo consumo de memória; cria uma `String` por linha; ideal para streaming           |
+  | `javaNIOBenchmark()`  | Leitura em blocos com `FileChannel` + `ByteBuffer (8 KB)` | Mede throughput bruto; não converte para `String`; buffer maior reduz chamadas de I/O |
+  | `javaNIO2Benchmark()` | `Files.readAllLines()`                                    | Simples de usar; carrega tudo em RAM; pode gerar alto consumo e pressão no GC         |
 
-- Edição:
-  - A versão IO faz leitura streaming e escreve em um arquivo temporário linha a linha (bom para mudanças parciais e menor uso de memória).
-  - As versões NIO/NIO2 neste projeto usam `Files.readAllLines()` seguido de transformações (`replaceAll`) e `Files.write()` — ou seja, carregam tudo em memória, modificam e reescrevem. Essa abordagem é mais direta, porém não escalável para arquivos muito grandes.
 
-- Deleção:
-  - Implementada via `File.delete()` (apenas delega para o método da `File`) e `Files.delete()` (NIO). Diferenças observadas nas medições são pequenas e geralmente ruído.
+### ✍️ Escrita:
 
-Observações e melhorias possíveis para o benchmark de arquivo:
+| Implementação              | Estratégia                                             | Observações                                                               |
+| -------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `javaIOWriteBenchmark()`   | Escrita linha a linha com `BufferedWriter`             | Buffer interno reduz chamadas ao disco                                    |
+| `javaNIOWriteBenchmark()`  | Escrita com `FileChannel` + `ByteBuffer` reaproveitado | Muitas chamadas pequenas a `write()`; agrupar linhas seria mais eficiente |
+| `javaNIO2WriteBenchmark()` | Monta `List<String>` e grava com `Files.write()`       | Simplifica o código, mas exige manter tudo em memória                     |
+
+### 🛠️ Edição:
+    
+- A versão IO faz leitura streaming e escreve em um arquivo temporário linha a linha (bom para mudanças parciais e menor uso de memória).
+- As versões NIO/NIO2 neste projeto usam `Files.readAllLines()` seguido de transformações (`replaceAll`) e `Files.write()` — ou seja, carregam tudo em memória, modificam e reescrevem. Essa abordagem é mais direta, porém não escalável para arquivos muito grandes.
+
+### 🗑️ Deleção:
+    
+- Implementada via `File.delete()` (apenas delega para o método da `File`) e `Files.delete()` (NIO). Diferenças observadas nas medições são pequenas e geralmente ruído.
+
+#### Observações e melhorias possíveis para o benchmark de arquivo:
 - Para medir mais fielmente o impacto do parsing (transformar bytes em String) seria interessante fazer a decodificação explícita em `javaNIOBenchmark()` usando um `CharsetDecoder` e tratar limites entre buffers (partial characters).
 - Para escrita com `FileChannel` agrupar várias linhas em um `ByteBuffer` maior reduz chamadas de sistema e costuma ser mais rápido.
 - Evitar `Files.readAllLines()` para arquivos grandes; usar streaming ou `Files.lines()` (stream lazily) pode ser melhor.
 - Usar medição com `System.nanoTime()` proporciona maior resolução.
 
-### Benchmark de coleções (classe `CollectionBenchmark`)
+## Benchmark de coleções (classe `CollectionBenchmark`)
 
-- Parâmetros principais:
-  - `sizes = {10_000, 100_000}` — tamanhos de teste.
-  - `iterations = 3` — número de execuções medidas por operação.
-  - `warmups = 1` — número de execuções de aquecimento antes das medições.
+### Parâmetros principais:
+- `sizes = {10_000, 100_000}` — tamanhos de teste.
+- `iterations = 3` — número de execuções medidas por operação.
+- `warmups = 1` — número de execuções de aquecimento antes das medições.
 
-- Estratégia geral:
-  - Para cada tamanho, o benchmark executa cenários de inserção, leitura, atualização e deleção para `ArrayList`, `HashSet` e `HashMap`.
-  - Cada operação (`insertList`, `readList`, etc.) cria a coleção localmente dentro do método. Isso significa que cada execução é isolada (coleções novas), evitando contaminação entre execuções.
+### Estratégia geral:
+- Para cada tamanho, o benchmark executa cenários de inserção, leitura, atualização e deleção para `ArrayList`, `HashSet` e `HashMap`.
+- Cada operação (`insertList`, `readList`, etc.) cria a coleção localmente dentro do método. Isso significa que cada execução é isolada (coleções novas), evitando contaminação entre execuções.
 
-- Como funciona o `timedBatch(Runnable op, int warmups, int iterations)`:
-  1. Warmup: se `warmups > 0`, executa `op.run()` `warmups` vezes. Após cada warmup chama `System.gc()` e `Thread.sleep(50)` para tentar reduzir estado residual entre execuções.
-  2. Medição: para cada uma das `iterations` repetições faz:
-     - registra `t0 = System.currentTimeMillis()`;
-     - executa `op.run()` (a operação medida);
-     - registra `t1 = System.currentTimeMillis()` e calcula `elapsed = t1 - t0`;
-     - imprime o tempo da execução atual (`execução N: X ms`) e acumula em `total`;
-     - chama `System.gc()` e `Thread.sleep(50)` antes da próxima iteração.
-  3. Retorna a média aritmética `total / iterations` como tempo médio em ms.
+### Como funciona o `timedBatch(Runnable op, int warmups, int iterations)`:
+1. Warmup: se `warmups > 0`, executa `op.run()` `warmups` vezes. Após cada warmup chama `System.gc()` e `Thread.sleep(50)` para tentar reduzir estado residual entre execuções.
+2. Medição: para cada uma das `iterations` repetições faz:
+    - registra `t0 = System.currentTimeMillis()`;
+    - executa `op.run()` (a operação medida);
+    - registra `t1 = System.currentTimeMillis()` e calcula `elapsed = t1 - t0`;
+    - imprime o tempo da execução atual (`execução N: X ms`) e acumula em `total`;
+    - chama `System.gc()` e `Thread.sleep(50)` antes da próxima iteração.
+3. Retorna a média aritmética `total / iterations` como tempo médio em ms.
 
-- Motivações por trás das escolhas:
-  - Warmup tenta estimular o JIT a compilar rotinas quentes antes das medições.
-  - `System.gc()` e `Thread.sleep(50)` são tentativas de reduzir o impacto de GC entre execuções e dar um pequeno intervalo para o sistema estabilizar.
-  - Criar e operar em coleções novas em cada execução evita efeitos de estado residual (por exemplo, um `ArrayList` já populado).
-  - Impressão de cada execução ajuda a avaliar variabilidade (ruído) entre tentativas.
+### Motivações por trás das escolhas:
+- Warmup tenta estimular o JIT a compilar rotinas quentes antes das medições.
+- `System.gc()` e `Thread.sleep(50)` são tentativas de reduzir o impacto de GC entre execuções e dar um pequeno intervalo para o sistema estabilizar.
+- Criar e operar em coleções novas em cada execução evita efeitos de estado residual (por exemplo, um `ArrayList` já populado).
+- Impressão de cada execução ajuda a avaliar variabilidade (ruído) entre tentativas.
 
-- Limitações e pontos de atenção:
-  - `System.currentTimeMillis()` tem resolução e precisão limitadas; `System.nanoTime()` é preferível para medições curtíssimas.
-  - Chamar `System.gc()` explicitamente não garante que o GC ocorrerá e pode introduzir ruído — é melhor evitar ou usar outros mecanismos de controle de memória/isolamento.
-  - Um único warmup (`warmups = 1`) pode não ser suficiente para estabilizar o JIT; recomenda-se aumentar para várias iterações em cenários reais.
-  - As operações alocam estruturas grandes repetidamente, o que aciona GC e pode afetar tempos; separar alocação e operação pode isolar melhor o comportamento desejado.
-  - Para medições confiáveis em Java recomenda-se usar JMH (Java Microbenchmark Harness), que trata de aquecimento, amostragem, isolamento e estatísticas de forma robusta.
+### Limitações e pontos de atenção:
+- `System.currentTimeMillis()` tem resolução e precisão limitadas; `System.nanoTime()` é preferível para medições curtíssimas.
+- Chamar `System.gc()` explicitamente não garante que o GC ocorrerá e pode introduzir ruído — é melhor evitar ou usar outros mecanismos de controle de memória/isolamento.
+- Um único warmup (`warmups = 1`) pode não ser suficiente para estabilizar o JIT; recomenda-se aumentar para várias iterações em cenários reais.
+- As operações alocam estruturas grandes repetidamente, o que aciona GC e pode afetar tempos; separar alocação e operação pode isolar melhor o comportamento desejado.
+- Para medições confiáveis em Java recomenda-se usar JMH (Java Microbenchmark Harness), que trata de aquecimento, amostragem, isolamento e estatísticas de forma robusta.
 
-- Observações de código:
-  - Para evitar que o compilador elimine loops como dead code, algumas funções acumulam valores (`sum`) e fazem verificações triviais (`if (sum < 0) ...`) — isso força o uso dos resultados e reduz otimizações indesejadas.
+### Observações de código:
+- Para evitar que o compilador elimine loops como dead code, algumas funções acumulam valores (`sum`) e fazem verificações triviais (`if (sum < 0) ...`) — isso força o uso dos resultados e reduz otimizações indesejadas.
 
-## Cenário de execução
+---
 
-Os resultados abaixo foram obtidos na execução cujo log foi compartilhado. Informações do ambiente reportado:
+## 🧪 Estratégia dos Benchmarks
 
-- Máquina: MacBook Pro 2020 (Intel i5)
-- Memória: 16 GB RAM
-- Sistema operacional: macOS Sequoia
-- JVM: Zulu JDK 25.0.1 (conforme caminho no log)
-- Execução iniciada via IntelliJ (o comando contém `-javaagent` do IDE)
-- Aplicativos em segundo plano durante a execução: Spotify e Safari (podem gerar ruído nas medidas)
+### 📁 Benchmark de Arquivo
 
-Comando registrado no log que gerou os resultados:
+Cenários medidos:
 
-/Users/luiz/.sdkman/candidates/java/25.0.1-zulu/zulu-25.jdk/Contents/Home/bin/java -javaagent:/Applications/IntelliJ IDEA.app/Contents/lib/idea_rt.jar=50721 -Dfile.encoding=UTF-8 -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8 -classpath /Users/luiz/Documents/GitHub/JBenchmark/target/classes com.luiz.Main
+- Leitura
+- Escrita
+- Edição
+- Deleção
 
-> Observação: por ser uma máquina de desenvolvimento com apps abertos, pequenas variações entre execuções são esperadas.
+### Resultados — Leitura
 
-## Resumo dos resultados
+![Leitura de Arquivo](DocImg/leitura_arquivo.png)
 
-Abaixo segue um resumo direto dos valores registrados no log e uma interpretação breve por seção.
+### Resultados — Escrita
 
-1) Leitura de arquivo (tempos em ms)
+![Escrita de Arquivo](DocImg/escrita_arquivo.png)
 
-- Java IO (BufferedReader): 792 ms
-- Java NIO (FileChannel): 81 ms
-- Java NIO2 (Files.readAllLines): 991 ms (linhas: 3.554.462)
+---
 
-Interpretação: Nesta execução o `FileChannel` mostrou melhor desempenho para leitura por blocos. `BufferedReader` faz parsing por linhas e cria `String`s gradualmente; `Files.readAllLines()` foi o mais lento devido ao custo de alocar milhões de `String`s e pressão sobre o GC.
+## 🧮 Benchmark de Coleções
 
-2) Escrita (inserção)
+Estruturas avaliadas:
 
-- Java IO (BufferedWriter): 8 ms
-- Java NIO (FileChannel): 228 ms (bytes escritos: 1.500.000)
-- Java NIO2 (Files.write): 14 ms
+- `ArrayList`
+- `HashSet`
+- `HashMap`
 
-Interpretação: `BufferedWriter` e `Files.write` foram muito rápidos neste teste; a versão com `FileChannel` foi mais lenta provavelmente por fazer muitas escritas pequenas (overhead por chamada). Para `FileChannel` agrupar linhas em buffers maiores normalmente melhora performance.
+Operações medidas (100.000 elementos):
 
-3) Edição
+- Inserção
+- Leitura
+- Atualização
+- Deleção
 
-- Java IO (stream linha-a-linha): 1824 ms
-- Java NIO (readAllLines fallback): 2233 ms e 2419 ms (duas execuções reportadas)
-- Java NIO2 (reaproveitou NIO): tempo consistente com NIO
+### Inserção
 
-Interpretação: A edição via streaming (IO) foi mais rápida que a estratégia que carrega tudo em memória e reescreve. Carregar milhões de linhas na memória aumenta custo de GC e tempo total de escrita.
+![Inserção (100k)](DocImg/insercao_100k.png)
 
-4) Deleção
+### Leitura
 
-- Java IO `File.delete()`: sucesso = true, tempo = 0 ms
-- Java NIO `Files.delete()`: arquivo existia = true, tempo = 14 ms
-- Segunda chamada `Files.delete()`: arquivo existia = false, tempo = 0 ms
+![Leitura (100k)](DocImg/leitura_100k.png)
 
-Interpretação: Deleção é geralmente rápida; pequenas variações são ruído e custos de verificação do sistema de arquivos.
+### Atualização
 
-5) Benchmarks de coleções (valores médios extraídos do log)
+![Atualização (100k)](DocImg/atualizacao_100k.png)
 
-Para tamanho = 10_000 (médias)
+### Deleção
 
-- ArrayList:
-  - Inserção (3 execuções): média = 2 ms
-  - Leitura: média = 2 ms
-  - Atualização: média = 4 ms
-  - Deleção: média = 3 ms
-- HashSet:
-  - Inserção: média = 2 ms
-  - Leitura (`contains`): média = 5 ms
-  - Atualização (remove+add): média = 6 ms
-  - Deleção: média = 4 ms
-- HashMap:
-  - Inserção: média = 3 ms
-  - Leitura (`get`): média = 5 ms
-  - Atualização (`put`): média = 7 ms
-  - Deleção: média = 4 ms
+![Deleção (100k)](DocImg/delecao_100k.png)
 
-Para tamanho = 100_000 (médias)
+---
 
-- ArrayList:
-  - Inserção: média = 2 ms
-  - Leitura: média = 1 ms
-  - Atualização: média = 10 ms
-  - Deleção: média = 2 ms
-- HashSet:
-  - Inserção: média = 20 ms
-  - Leitura (`contains`): média = 25 ms
-  - Atualização (remove+add): média = 30 ms
-  - Deleção: média = 24 ms
-- HashMap:
-  - Inserção: média = 21 ms
-  - Leitura (`get`): média = 30 ms
-  - Atualização (`put`): média = 35 ms
-  - Deleção: média = 22 ms
+## 🚀 Como Executar
 
-Interpretação geral das coleções:
-- `ArrayList` se mantém extremamente rápido para inserção no final e acesso sequencial; atualizações indexadas e operações que forçam deslocamento podem aumentar custo, mas aqui permanecem baixas comparadas às estruturas baseadas em hashing.
-- `HashSet` e `HashMap` apresentam overhead adicional por hashing e possíveis colisões/re-hashing — isso fica mais evidente com 100k elementos, onde os tempos aumentam significativamente.
-- Os tempos são curtos (ms) e suscetíveis a ruído (JVM, GC, outros processos), portanto devem ser usados como indicativo e não prova definitiva.
-
-## Interpretação geral e recomendações
-
-- Para leitura de grandes arquivos: preferir abordagens baseadas em blocos (`FileChannel`) ou streaming (`BufferedReader`) em vez de `Files.readAllLines()` quando houver risco de esgotamento de memória.
-- Para escrita: evitar muitos writes pequenos com `FileChannel`; agrupar em buffers reduz chamadas de I/O e melhora throughput.
-- Edição: streaming linha-a-linha costuma ser mais eficiente quando o arquivo é grande e apenas parte do conteúdo muda. Evitar carregar tudo em memória quando possível.
-- Coleções: escolha baseada no padrão de acesso — `ArrayList` para acesso sequencial/append rápido; `HashMap`/`HashSet` para buscas/uniquidade com custo de hash.
-
-## Como reproduzir
-
-1. Compilar:
+### 1️⃣ Compilar
 
 ```bash
 mvn -q package
 ```
 
-2. Rodar teste rápido (gera ~10k linhas; indicado para validar sem usar muito espaço):
+### 2️⃣ Rodar teste rápido (~10k linhas)
 
 ```bash
 java -cp target/classes com.luiz.TestFileRunner
 ```
 
-3. Rodar benchmark completo (gera ~200MB — verifique espaço em disco):
+### 3️⃣ Rodar benchmark completo (~200MB)
 
 ```bash
 java -cp target/classes com.luiz.Main
 ```
 
-## Nota final
+⚠️ Certifique-se de ter espaço em disco e memória suficiente.
 
-Os números apresentados são um retrato de uma execução específica (hardware, JVM, carga do sistema). Para comparações robustas recomenda-se rodar múltiplas execuções em um ambiente controlado (sem outros processos pesados), usar ferramentas de benchmark específicas (JMH) e coletar estatísticas de distribuição (médias, desvios, percentis).
+---
+
+## 🧠 Análise Contextual dos Resultados
+
+Os gráficos apresentados permitem observar claramente o comportamento de desempenho das operações
+executadas. A seguir, um resumo analítico dos principais pontos:
+
+### 📌 1. Operações em Arquivos
+As operações de **leitura** e **escrita** apresentaram tempos relativamente baixos e estáveis.
+Isso indica que o volume de dados manipulado não foi suficiente para impactar significativamente
+o desempenho do sistema nesta etapa. Esses resultados mostram que o fluxo de I/O está eficiente
+para o cenário testado.
+
+### 📌 2. Inserção em Coleções (100k registros)
+A operação de inserção apresentou o maior tempo dentre todas as operações com coleções.
+Isso é esperado, já que estruturar e armazenar um volume significativo de dados demanda
+tempo de alocação e gerenciamento interno da estrutura de dados.
+
+### 📌 3. Leitura em Coleções (100k registros)
+A leitura mostrou desempenho rápido, destacando que acessar dados já carregados em memória
+é uma operação otimizada e escalável. Esse comportamento demonstra que, após a inserção inicial,
+o sistema consegue recuperar informações de forma eficiente.
+
+### 📌 4. Atualização em Coleções (100k registros)
+Os tempos de atualização foram superiores aos de leitura, mas ainda assim aceitáveis.
+Isso se deve ao fato de que cada elemento precisa ser acessado e modificado individualmente,
+o que introduz uma sobrecarga natural na operação.
+
+### 📌 5. Deleção em Coleções (100k registros)
+A operação de deleção apresentou tempos moderados, indicando eficiência razoável.
+Embora remover itens envolva reorganização interna das estruturas de dados, o processo
+se mostrou consistente e relativamente rápido.
+
+---
+
+### ✅ Conclusão Geral
+
+- Operações em memória escalam melhor do que operações de escrita.
+- Inserções são mais custosas que leituras e alterações.
+- O tempo de resposta se mantém dentro de um intervalo estável, mesmo com 100k registros.
+- Esses resultados indicam que o sistema está bem estruturado para lidar com grandes volumes de dados.
+
+Se o volume crescer além disso (milhões de registros), pode ser necessário considerar:
+- Estruturas de dados otimizadas
+- Estratégias de indexação
+- Processamento assíncrono ou em lotes
+---
+## 🧭 Recomendações e Insights
+
+- Para arquivos grandes: prefira **streaming ou FileChannel**, evite `Files.readAllLines()`.
+- Para escrita com NIO: agrupe dados em buffers maiores para reduzir chamadas de sistema.
+- Para coleções:
+    - `ArrayList` é excelente para acesso sequencial e inserção no fim.
+    - `HashSet`/`HashMap` são melhores para buscas rápidas, mas têm overhead maior.
+
+---
+
+## 📌 Observação
+
+Os valores apresentados representam **uma execução específica**. Para medições confiáveis:
+
+- Execute várias vezes
+- Mantenha o sistema ocioso
+- Use ferramentas como **JMH**
+
+---
+
+## 👨‍💻 Autor
+
+Luiz Henrique — Projeto educacional e exploratório. Sinta-se à vontade para contribuir!
+
+---
