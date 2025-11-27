@@ -21,6 +21,7 @@ public class FileGenerator {
                 writer.write(linhaBase);
                 tamanhoAtual += linhaBase.getBytes().length;
             }
+            writer.close();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
